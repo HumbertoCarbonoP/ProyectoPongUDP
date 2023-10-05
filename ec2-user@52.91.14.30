@@ -1,0 +1,82 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+
+#define SERVER_PORT 8080
+#define BUFFER_SIZE 1024
+#define CLIENT_COUNT 2
+
+typedef struct {
+    float ball_x;
+    float ball_y;
+    float paddle1_y;
+    float paddle2_y;
+} GameData;
+
+int main() {
+    int sockfd;
+    struct sockaddr_in serverAddr, clientAddrs[CLIENT_COUNT];
+    GameData game;
+    socklen_t addr_size;
+    int connected_clients = 0;
+
+    game.ball_x = 0.5;
+    game.ball_y = 0.5;
+    game.paddle1_y = 0.5;
+    game.paddle2_y = 0.5;
+
+    if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+        perror("socket creation failed");
+        exit(EXIT_FAILURE);
+    }
+
+    memset(&serverAddr, 0, sizeof(serverAddr));
+
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_port = htons(SERVER_PORT);
+    serverAddr.sin_addr.s_addr = INADDR_ANY;
+
+    if (bind(sockfd, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
+        perror("bind failed");
+        exit(EXIT_FAILURE);
+    }
+
+    printf("Waiting for clients...\n");
+
+    while (connected_clients < CLIENT_COUNT) {
+        char buffer[BUFFER_SIZE];
+        recvfrom(sockfd, buffer, BUFFER_SIZE, 0, 
+                 (struct sockaddr *)&clientAddrs[connected_clients], &addr_size);
+        
+        printf("Client %d connected!\n", connected_clients + 1);
+        connected_clients++;
+    }
+
+    printf("Both clients are connected! Starting the game...\n");
+
+    while (1) {
+        for (int i = 0; i < CLIENT_COUNT; i++) {
+            char buffer[BUFFER_SIZE];
+            int len = recvfrom(sockfd, buffer, BUFFER_SIZE, 
+                    MSG_DONTWAIT, (struct sockaddr *)&clientAddrs[i], &addr_size);
+
+            if(i == 0) {
+                game.paddle1_y = atof(buffer);
+            } else {
+                game.paddle2_y = atof(buffer);
+            }
+        }
+
+        char out_buffer[BUFFER_SIZE];
+        for (int i = 0; i < CLIENT_COUNT; i++) {
+            sprintf(out_buffer, "%f,%f,%f", game.ball_x, game.ball_y, (i == 0 ? game.paddle2_y : game.paddle1_y));
+            sendto(sockfd, out_buffer, strlen(out_buffer), 
+                   0, (struct sockaddr *)&clientAddrs[i], addr_size);
+        }
+    }
+
+    close(sockfd);
+    return 0;
+}
