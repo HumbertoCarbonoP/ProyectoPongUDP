@@ -8,7 +8,7 @@ FPS = 60
 BLANCO = (255, 255, 255)
 NEGRO = (0, 0, 0)
 
-SERVER_IP = '34.204.8.255'
+SERVER_IP = '52.91.143.129'
 SERVER_PORT = 8080
 BUFFER_SIZE = 1024
 
@@ -75,7 +75,17 @@ def listen_for_messages(client_socket):
             ball.x, ball.y, paddle_1.y, paddle_2.y, score_1, score_2 = map(int, data)
             
             print(f"ball_x: {ball.x}, ball_y: {ball.y}, paddle_1_y: {paddle_1.y}, paddle_2_y: {paddle_2.y}")
+            if not running:
+                break
             update_positions_and_screen()
+
+
+def show_message(message, y_offset=0):
+    font = pygame.font.Font(None, 60)
+    text_surface = font.render(message, True, NEGRO)
+    text_rect = text_surface.get_rect(center=(400, 300 + y_offset))
+    ventana.blit(text_surface, text_rect)
+    pygame.display.flip()
 
 def main():
     fuente = pygame.font.Font(None, 60)
@@ -89,10 +99,15 @@ def main():
     listener_thread.daemon = True
     listener_thread.start()
     
-    print("Esperando a que todos los jugadores se conecten...")
+    ventana.fill(BLANCO)
+    show_message("Bienvenido a Pong!", -20)
+    show_message("Esperando otro jugador...", 20)
     while not start_game:
-        pass
-    
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                pygame.quit()
+                return
+
     global running
     clock = pygame.time.Clock()
     current_movement = "0"
@@ -101,8 +116,7 @@ def main():
         update_positions_and_screen()
         if (score_1 == 5 or score_2 == 5):
             running = False
-            continue
-        
+            
         for event in pygame.event.get():
             if (event.type == QUIT):
                 running = False
@@ -124,6 +138,15 @@ def main():
             
         pygame.display.flip()
         clock.tick(FPS)
+        
+    ventana.fill(BLANCO)
+    if score_1 == 5:
+        show_message("Jugador 1 gana!", -20)
+    else:
+        show_message("Jugador 2 gana!", -20)
+    show_message("Cerrando en 5 segundos...", 20)
+
+    pygame.time.wait(5000)
 
     pygame.quit()
     client_socket.close()
