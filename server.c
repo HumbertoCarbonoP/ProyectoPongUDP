@@ -16,8 +16,8 @@ typedef struct
     int dir_y;
     int x;
     int y;
-    int puntuacion_1;
-    int puntuacion_2;
+    int score_1;
+    int score_2;
 } Ball;
 
 void moveBall(Ball *ball)
@@ -40,18 +40,14 @@ void bounce(Ball *ball)
     if (ball->x <= -40)
     {
         reset(ball);
-        ball->puntuacion_2 += 1;
+        ball->score_2 += 1;
     }
     if (ball->x >= 800)
     {
         reset(ball);
-        ball->puntuacion_1 += 1;
+        ball->score_1 += 1;
     }
-    if (ball->y <= 0)
-    {
-        ball->dir_y = -(ball->dir_y);
-    }
-    if (ball->y + 40 >= 600)
+    if (ball->y <= 0 || ball->y + 40 >= 600)
     {
         ball->dir_y = -(ball->dir_y);
     }
@@ -79,25 +75,14 @@ void movePaddle(Paddle *paddle)
 
 void hit(Paddle *paddle, Ball *ball, int isPaddle1)
 {
-    if (
-        ball->x < paddle->x + 22 && ball->x > paddle->x && ball->y + 40 > paddle->y && ball->y < paddle->y + 100)
+    if (ball->x < paddle->x + 22 && ball->x > paddle->x && ball->y + 40 > paddle->y && ball->y < paddle->y + 100)
     {
         ball->dir_x = -ball->dir_x;
-
-        // Si es la paleta 1
-        if (isPaddle1)
-        {
-            ball->x = paddle->x + 22;
-        }
-        // Si es la paleta 2
-        else
-        {
-            ball->x = paddle->x - 40;
-        }
+        ball->x = isPaddle1 ? paddle->x + 22 : paddle->x - 40;
     }
 }
 
-int find_client_index(struct sockaddr_in *clientAddrs, struct sockaddr_in client)
+int findClientIndex(struct sockaddr_in *clientAddrs, struct sockaddr_in client)
 {
     for (int i = 0; i < 2; i++)
     {
@@ -110,13 +95,13 @@ int find_client_index(struct sockaddr_in *clientAddrs, struct sockaddr_in client
     return -1;
 }
 
-void log_info(const char *message)
+void logInfo(const char *message)
 {
     fprintf(logfd, "[INFO] %s\n", message);
     fflush(logfd);
 }
 
-void log_error(const char *message)
+void logError(const char *message)
 {
     fprintf(logfd, "[ERROR] %s\n", message);
     fflush(logfd);
@@ -127,43 +112,23 @@ typedef struct
     int sockfd;
     struct sockaddr_in serverAddr, clientAddr, clientAddrs[2];
     int addr_size;
-
 } GameThreadArgs;
 
-void *handle_game(void *arg)
+void *handleGame(void *arg)
 {
     GameThreadArgs *args = (GameThreadArgs *)arg;
-    char start_msg[] = "START";
+    char startMsg[] = "START";
     for (int i = 0; i < 2; i++)
     {
-        sendto(args->sockfd, start_msg, strlen(start_msg), 0, (struct sockaddr *)&args->clientAddrs[i], args->addr_size);
+        sendto(args->sockfd, startMsg, strlen(startMsg), 0, (struct sockaddr *)&args->clientAddrs[i], args->addr_size);
     }
 
-    printf("Todos los clientes están conectados...\n");
-    log_info("Todos los clientes están conectados...\n");
+    printf("All clients connected...\n");
+    logInfo("All clients connected...");
 
-    Ball ball;
-
-    ball.x = 380;
-    ball.y = 280;
-
-    int random_number = rand() % 2;
-    ball.dir_x = (random_number == 0) ? -2 : 2;
-    random_number = rand() % 2;
-    ball.dir_y = (random_number == 0) ? -2 : 2;
-
-    ball.puntuacion_1 = 0;
-    ball.puntuacion_2 = 0;
-
-    Paddle paddle_1, paddle_2;
-
-    paddle_1.x = 60;
-    paddle_1.y = 250;
-    paddle_1.dir_y = 0;
-
-    paddle_2.x = 718;
-    paddle_2.y = 250;
-    paddle_2.dir_y = 0;
+    Ball ball = { .x = 380, .y = 280, .dir_x = (rand() % 2) ? -2 : 2, .dir_y = (rand() % 2) ? -2 : 2, .score_1 = 0, .score_2 = 0 };
+    Paddle paddle_1 = { .x = 60, .y = 250, .dir_y = 0 };
+    Paddle paddle_2 = { .x = 718, .y = 250, .dir_y = 0 };
 
     char buffer[BUFFER_SIZE];
 
@@ -174,21 +139,19 @@ void *handle_game(void *arg)
         {
             buffer[bytesReceived] = '\0';
 
-            int sendingClientIndex = find_client_index(args->clientAddrs, args->clientAddr);
+            int sendingClientIndex = findClientIndex(args->clientAddrs, args->clientAddr);
             char logMessage[256];
-            sprintf(logMessage, "El cliente %d envía: %d.\n", sendingClientIndex, atoi(buffer));
-            printf(logMessage);
-            log_info(logMessage);
+            sprintf(logMessage, "Client %d sends: %d.", sendingClientIndex, atoi(buffer));
+            printf("%s\n", logMessage);
+            logInfo(logMessage);
 
             if (sendingClientIndex == 0)
             {
                 paddle_1.dir_y = atoi(buffer);
-                // printf("Dirección 1: %d\n", paddle_1.dir_y);
             }
             else if (sendingClientIndex == 1)
             {
                 paddle_2.dir_y = atoi(buffer);
-                // printf("Dirección 2: %d\n", paddle_2.dir_y);
             }
 
             moveBall(&ball);
@@ -198,11 +161,10 @@ void *handle_game(void *arg)
             hit(&paddle_1, &ball, 1);
             hit(&paddle_2, &ball, 0);
 
-            // Reenviando datos a ambos clientes
             for (int clientIndex = 0; clientIndex < 2; clientIndex++)
             {
                 char tempBuffer2[256];
-                sprintf(tempBuffer2, "%d %d %d %d %d %d", ball.x, ball.y, paddle_1.y, paddle_2.y, ball.puntuacion_1, ball.puntuacion_2);
+                sprintf(tempBuffer2, "%d %d %d %d %d %d", ball.x, ball.y, paddle_1.y, paddle_2.y, ball.score_1, ball.score_2);
                 sendto(args->sockfd, tempBuffer2, strlen(tempBuffer2), 0, (struct sockaddr *)&args->clientAddrs[clientIndex], args->addr_size);
             }
         }
@@ -213,7 +175,7 @@ int main(int argc, char *argv[])
 {
     if (argc != 3)
     {
-        fprintf(stderr, "Uso: %s <PORT> <Log File>\n", argv[0]);
+        fprintf(stderr, "Usage: %s <PORT> <Log File>\n", argv[0]);
         exit(EXIT_FAILURE);
     }
 
@@ -221,9 +183,9 @@ int main(int argc, char *argv[])
     char *logFile = argv[2];
 
     logfd = fopen(logFile, "a");
-    if (logfd == NULL)
+    if (!logfd)
     {
-        perror("Error al abrir el archivo de log");
+        perror("Error opening log file");
         exit(EXIT_FAILURE);
     }
 
@@ -242,7 +204,7 @@ int main(int argc, char *argv[])
 
     if (bind(sockfd, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0)
     {
-        perror("Error al enlazar");
+        perror("Binding error");
         close(sockfd);
         exit(1);
     }
@@ -255,37 +217,41 @@ int main(int argc, char *argv[])
 
     while (1)
     {
-        int connected_clients = 0;
-        while (connected_clients < 2)
+        int bytesReceived = recvfrom(sockfd, buffer, BUFFER_SIZE, 0, (struct sockaddr *)&clientAddr, &addr_size);
+        if (bytesReceived > 0)
         {
-            int bytesReceived = recvfrom(sockfd, buffer, BUFFER_SIZE, 0, (struct sockaddr *)&clientAddr, &addr_size);
-            if (bytesReceived > 0)
+            buffer[bytesReceived] = '\0';
+
+            if (strcmp(buffer, "CONNECT") == 0)
             {
-                buffer[bytesReceived] = '\0';
-                if (strcmp(buffer, "CONNECT") == 0 && find_client_index(clientAddrs, clientAddr) == -1)
+                int clientIndex = findClientIndex(clientAddrs, clientAddr);
+                if (clientIndex == -1)
                 {
-                    clientAddrs[connected_clients] = clientAddr;
-                    connected_clients++;
-                    printf("%d", connected_clients);
-                    printf("Cliente %d conectado desde %s:%d\n", connected_clients, inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port));
-                    char log_message[256];
-                    sprintf(log_message, "Cliente %d conectado desde %s:%d", connected_clients, inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port));
-                    log_info(log_message);
+                    for (int i = 0; i < 2; i++)
+                    {
+                        if (clientAddrs[i].sin_port == 0)
+                        {
+                            clientAddrs[i] = clientAddr;
+                            printf("Client %d connected...\n", i);
+                            logInfo("Client connected...");
+
+                            if (i == 1)
+                            {
+                                GameThreadArgs args = { .sockfd = sockfd, .serverAddr = serverAddr, .clientAddr = clientAddr, .addr_size = addr_size };
+                                memcpy(args.clientAddrs, clientAddrs, sizeof(clientAddrs));
+                                pthread_t gameThread;
+                                pthread_create(&gameThread, NULL, handleGame, &args);
+                                pthread_detach(gameThread);
+                            }
+                            break;
+                        }
+                    }
                 }
             }
         }
-
-        if (connected_clients == 2){
-            pthread_t game_thread;
-            GameThreadArgs *args = malloc(sizeof(GameThreadArgs));
-            memcpy(args->clientAddrs, clientAddrs, sizeof(clientAddrs));
-            args->sockfd = sockfd;
-            args->addr_size = sizeof(clientAddrs[0]);
-            pthread_create(&game_thread, NULL, handle_game, (void *)args);
-            pthread_detach(game_thread);
-        }
     }
-    close(sockfd);
 
+    close(sockfd);
+    fclose(logfd);
     return 0;
 }
