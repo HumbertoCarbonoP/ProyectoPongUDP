@@ -2,14 +2,7 @@ import socket
 import threading
 import pygame
 from pygame.locals import QUIT
-
-FPS = 60
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-
-SERVER_IP = '52.91.143.129'
-SERVER_PORT = 8080
-BUFFER_SIZE = 1024
+import settings
 
 start_game = False
 score_1 = 0
@@ -43,13 +36,13 @@ paddle_2.x = 800 - 60 - 22
 
 def update_positions_and_screen():
     font = pygame.font.Font(None, 60)
-    window.fill(WHITE)
+    window.fill(settings.WHITE)
 
     window.blit(ball.image, (ball.x, ball.y))
     window.blit(paddle_1.image, (paddle_1.x, paddle_1.y))
     window.blit(paddle_2.image, (paddle_2.x, paddle_2.y))
     text = f"{score_1} : {score_2}"
-    sign = font.render(text, False, BLACK)
+    sign = font.render(text, False, settings.BLACK)
     window.blit(sign, (800 / 2 - font.size(text)[0] / 2, 50))
 
     pygame.display.flip()
@@ -58,7 +51,7 @@ def update_positions_and_screen():
 def listen_for_messages(client_socket):
     global start_game, score_1, score_2
     while True:
-        data, _ = client_socket.recvfrom(BUFFER_SIZE)
+        data, _ = client_socket.recvfrom(settings.BUFFER_SIZE)
         if data:
             data = data.decode()
             if data == "START":
@@ -75,7 +68,7 @@ def listen_for_messages(client_socket):
 
 def show_message(message, y_offset=0):
     font = pygame.font.Font(None, 60)
-    text_surface = font.render(message, True, BLACK)
+    text_surface = font.render(message, True, settings.BLACK)
     text_rect = text_surface.get_rect(center=(400, 300 + y_offset))
     window.blit(text_surface, text_rect)
     pygame.display.flip()
@@ -84,14 +77,14 @@ def show_message(message, y_offset=0):
 def main():
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-    client_socket.sendto("CONNECT".encode(), (SERVER_IP, SERVER_PORT))
+    client_socket.sendto("CONNECT".encode(), (settings.SERVER_IP, settings.SERVER_PORT))
     print("Connected to server.")
 
     listener_thread = threading.Thread(target=listen_for_messages, args=(client_socket,))
     listener_thread.daemon = True
     listener_thread.start()
 
-    window.fill(WHITE)
+    window.fill(settings.WHITE)
     show_message("Welcome to Pong!", -20)
     show_message("Waiting for another player...", 20)
 
@@ -123,10 +116,10 @@ def main():
                 if event.key in [pygame.K_w, pygame.K_s]:
                     current_movement = "0"
 
-        client_socket.sendto(current_movement.encode(), (SERVER_IP, SERVER_PORT))
-        clock.tick(FPS)
+        client_socket.sendto(current_movement.encode(), (settings.SERVER_IP, settings.SERVER_PORT))
+        clock.tick(settings.FPS)
 
-    window.fill(WHITE)
+    window.fill(settings.WHITE)
     if score_1 == 5:
         show_message("Player 1 wins!", -20)
     elif score_2 == 5:
